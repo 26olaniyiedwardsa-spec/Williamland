@@ -1,0 +1,182 @@
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 800;
+canvas.height = 600;
+
+// Game states
+const GAME_STATE = { TOP_DOWN: 'top_down', SIDE_SCROLLER: 'side_scroller', PAUSED: 'paused' };
+let gameState = GAME_STATE.PAUSED;
+
+// Player and King
+const player = { x: 50, y: 500, width: 40, height: 40, color: 'blue', speed: 5, yVelocity: 0 };
+const king = { x: 700, y: 50, width: 50, height: 50, color: 'gold', yVelocity: 0 };
+const gravity = 0.5;
+const obstacles = [];
+let gameTime = 0;
+
+// Cutscene elements
+const cutsceneDiv = document.getElementById('cutscene');
+const startButton = document.getElementById('start-button');
+let cutsceneStep = 0;
+const introDialog = ["You enter the royal chamber.", "The King stands before you.", "King: So, you have come."];
+
+// Admin commands object
+const admin = {
+    // Teleport the player to a specified location
+    teleport: (x, y) => {
+        if (gameState !== GAME_STATE.PAUSED) {
+            player.x = x;
+            player.y = y;
+            console.log(`Teleported player to x:${x}, y:${y}`);
+        } else {
+            console.log("Cannot teleport while the game is paused.");
+        }
+    },
+    // Instantly defeat the king and start the ending cutscene
+    win: () => {
+        startEndingCutscene();
+        console.log("Forcing game end sequence.");
+    },
+    // Skip to the side-scroller part of the game
+    skipToSideScroller: () => {
+        startTVCutscene();
+        console.log("Skipping to side-scroller game mode.");
+    },
+    // Change the player's color
+    changeColor: (newColor) => {
+        player.color = newColor;
+        console.log(`Player color changed to ${newColor}.`);
+    }
+};
+
+// Expose admin commands to the global scope
+window.game = { admin: admin };
+
+function drawRect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+}
+
+function updateGame() {
+    if (gameState === GAME_STATE.PAUSED) {
+        // Game is paused for a cutscene, do nothing
+    } else if (gameState === GAME_STATE.TOP_DOWN) {
+        // Clear and draw top-down view
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawRect(player.x, player.y, player.width, player.height, player.color);
+        drawRect(king.x, king.y, king.width, king.height, king.color);
+        if (checkCollision(player, king)) startTVCutscene();
+    } else if (gameState === GAME_STATE.SIDE_SCROLLER) {
+        gameTime++;
+        updateSideScroller();
+        if (gameTime / 60 >= 15 * 60) startEndingCutscene(); // 15 mins
+    }
+    requestAnimationFrame(updateGame);
+}
+
+function updateSideScroller() {
+    // Drawing
+    ctx.fillStyle = '#ADD8E6';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#5a8b5a';
+    ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+
+    // Update player
+    player.yVelocity += gravity;
+    player.y += player.yVelocity;
+    if (player.y > canvas.height - 50 - player.height) {
+        player.y = canvas.height - 50 - player.height;
+        player.yVelocity = 0;
+    }
+    drawRect(player.x, player.y, player.width, player.height, player.color);
+
+    // Update obstacles
+    obstacles.forEach(ob => {
+        ob.x -= 3; // Scroll speed
+        drawRect(ob.x, ob.y, ob.width, ob.height, 'red');
+        if (checkCollision(player, ob)) window.location.reload(); // Game over
+    });
+}
+
+function createObstacle() {
+    if (gameState === GAME_STATE.SIDE_SCROLLER) {
+        const height = 50 + Math.random() * 100;
+        obstacles.push({ x: canvas.width, y: canvas.height - 50 - height, width: 30, height: height });
+    }
+}
+
+// Cutscene Functions
+function startIntroCutscene() {
+    gameState = GAME_STATE.PAUSED;
+    cutsceneStep = 0;
+    cutsceneDiv.innerHTML = `<p>${introDialog[cutsceneStep]}</p><button id="next-button">Next</button>`;
+    cutsceneDiv.classList.add('active');
+}
+
+function startTVCutscene() {
+    gameState = GAME_STATE.PAUSED;
+    cutsceneDiv.innerHTML = `<p>The King gestures to a nearby TV. A vortex appears!</p>`;
+    cutsceneDiv.classList.add('active');
+    setTimeout(() => {
+        cutsceneDiv.innerHTML = `<p>The King gets sucked into the TV...</p>`;
+    }, 2000);
+    setTimeout(() => {
+        // Transition to side-scroller
+        gameState = GAME_STATE.SIDE_SCROLLER;
+        cutsceneDiv.classList.remove('active');
+        player.x = 100;
+        player.y = canvas.height - 50 - player.height;
+        setInterval(createObstacle, 2000); // Create obstacles every 2 seconds
+    }, 4000);
+}
+
+function startEndingCutscene() {
+    gameState = GAME_STATE.PAUSED;
+    cutsceneDiv.innerHTML = `<p>You catch up to the King.</p>`;
+    cutsceneDiv.classList.add('active');
+    setTimeout(() => cutsceneDiv.innerHTML = `<p>You draw your blade...</p>`, 2000);
+    setTimeout(() => cutsceneDiv.innerHTML = `<p>The blade plunges into the King's back.</p>`, 4000);
+    setTimeout(() => {
+        cutsceneDiv.innerHTML = `<p>The End.</p><button id="restart-button">Restart</button>`;
+        document.getElementById('restart-button').addEventListener('click', () => window.location.reload());
+    }, 6000);
+}
+
+// Event Listeners
+startButton.addEventListener('click', () => {
+    startIntroCutscene();
+});
+
+cutsceneDiv.addEventListener('click', function(e) {
+    if (e.target && e.target.id == 'next-button') {
+        cutsceneStep++;
+        if (cutsceneStep < introDialog.length) {
+            cutsceneDiv.querySelector('p').innerText = introDialog[cutsceneStep];
+        } else {
+            cutsceneDiv.classList.remove('active');
+            gameState = GAME_STATE.TOP_DOWN;
+        }
+    }
+});
+
+window.addEventListener('keydown', (e) => {
+    if (gameState === GAME_STATE.TOP_DOWN) {
+        switch (e.key) {
+            case 'ArrowUp': player.y -= player.speed; break;
+            case 'ArrowDown': player.y += player.speed; break;
+            case 'ArrowLeft': player.x -= player.speed; break;
+            case 'ArrowRight': player.x += player.speed; break;
+        }
+    } else if (gameState === GAME_STATE.SIDE_SCROLLER) {
+        if (e.key === 'ArrowUp' && player.yVelocity === 0) {
+            player.yVelocity = -12; // Jump
+        }
+    }
+});
+
+function checkCollision(r1, r2) {
+    return r1.x < r2.x + r2.width && r1.x + r1.width > r2.x &&
+           r1.y < r2.y + r2.height && r1.y + r1.height > r2.y;
+}
+
+updateGame();
