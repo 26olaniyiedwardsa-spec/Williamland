@@ -1,0 +1,29 @@
+body {
+    background-color: #222;
+    color: white;
+    text-align: center;
+    font-family: sans-serif;
+    margin: 0;
+    overflow: hidden; /* Prevent scrolling */
+}
+
+canvas {
+    background-color: #5a8b5a; /* A grassy green */
+    border: 2px solid white;
+}
+
+#cutscene {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    border: 2px solid white;
+    display: none;
+    z-index: 10;
+}
+
+#cutscene.active {
+    display: block;
+}
